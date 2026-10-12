@@ -130,6 +130,7 @@ export async function authRoutes(fastify: FastifyInstance) {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
+              'Authorization': `MediaBrowser Client="Jellyfin-Wrapped-Backend", Device="Server", DeviceId="jellyfin-wrapped-backend", Version="1.0.0"`,
               'X-Emby-Authorization': `MediaBrowser Client="Jellyfin-Wrapped-Backend", Device="Server", DeviceId="jellyfin-wrapped-backend", Version="1.0.0"`,
             },
             body: JSON.stringify({

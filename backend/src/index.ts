@@ -24,9 +24,10 @@ const OIDC_REDIRECT_URI = process.env.OIDC_REDIRECT_URI;
 const FRONTEND_URL = process.env.FRONTEND_URL;
 const OIDC_USERNAME_CLAIM = process.env.OIDC_USERNAME_CLAIM || 'preferred_username';
 
-// CORS allowed origins based on environment
-const PRODUCTION_ORIGIN = 'https://wrapped.raja-house.com';
-const DEVELOPMENT_ORIGINS = [PRODUCTION_ORIGIN, 'http://localhost:5173'];
+// CORS: comma-separated list of allowed origins (use "*" to allow any origin)
+const CORS_ORIGINS = process.env.CORS_ORIGINS;
+// Extra origin allowed outside production (Vite dev server)
+const DEV_ORIGIN = 'http://localhost:5173';
 
 if (!JWT_SECRET) {
   console.error('JWT_SECRET environment variable is required');
@@ -49,48 +50,73 @@ if (!JELLYFIN_API_KEY) {
   process.exit(1);
 }
 
-// Validate OIDC configuration — all or nothing
-const oidcVars = [OIDC_ISSUER_URL, OIDC_CLIENT_ID, OIDC_CLIENT_SECRET, OIDC_REDIRECT_URI, FRONTEND_URL];
+// Normalize an origin/URL: trim whitespace and trailing slashes
+function normalizeOrigin(value: string): string {
+  return value.trim().replace(/\/+$/, '');
+}
+
+// Resolve CORS policy once at startup.
+// - CORS_ORIGINS: comma-separated allowlist ("*" allows any origin)
+// - FRONTEND_URL: automatically added to the allowlist when set
+// - If neither is set, any origin is allowed (reflected). This is safe for auth purposes
+//   because the API uses Bearer JWTs, not cookies, but an allowlist is recommended in production.
+const configuredOrigins = (CORS_ORIGINS ? CORS_ORIGINS.split(',') : [])
+  .map(normalizeOrigin)
+  .filter(Boolean);
+if (FRONTEND_URL) {
+  configuredOrigins.push(normalizeOrigin(FRONTEND_URL));
+}
+
+const ALLOW_ALL_ORIGINS = configuredOrigins.length === 0 || configuredOrigins.includes('*');
+const ALLOWED_ORIGINS = Array.from(new Set(configuredOrigins.filter((o) => o !== '*')));
+if (!ALLOW_ALL_ORIGINS && NODE_ENV !== 'production' && !ALLOWED_ORIGINS.includes(DEV_ORIGIN)) {
+  ALLOWED_ORIGINS.push(DEV_ORIGIN);
+}
+
+if (ALLOW_ALL_ORIGINS) {
+  console.log('CORS: Allowing all origins (set CORS_ORIGINS or FRONTEND_URL to restrict)');
+} else {
+  console.log(`CORS: Allowing origins: ${ALLOWED_ORIGINS.join(', ')}`);
+}
+
+function isOriginAllowed(origin: string): boolean {
+  return ALLOW_ALL_ORIGINS || ALLOWED_ORIGINS.includes(normalizeOrigin(origin));
+}
+
+// Validate OIDC configuration — all or nothing.
+// FRONTEND_URL is intentionally NOT part of this check; it is optional.
+const oidcVars = [OIDC_ISSUER_URL, OIDC_CLIENT_ID, OIDC_CLIENT_SECRET, OIDC_REDIRECT_URI];
 const oidcPartiallyConfigured = oidcVars.some(Boolean);
 const oidcFullyConfigured = oidcVars.every(v => !!v);
 
 if (oidcPartiallyConfigured && !oidcFullyConfigured) {
   console.error('OIDC is partially configured. All of these must be set together:');
-  console.error('  OIDC_ISSUER_URL, OIDC_CLIENT_ID, OIDC_CLIENT_SECRET, OIDC_REDIRECT_URI, FRONTEND_URL');
+  console.error('  OIDC_ISSUER_URL, OIDC_CLIENT_ID, OIDC_CLIENT_SECRET, OIDC_REDIRECT_URI');
   process.exit(1);
 }
 
+// Where to send the user after the OIDC callback. Prefer FRONTEND_URL, then the first
+// explicit CORS origin, then the origin of OIDC_REDIRECT_URI (e.g. frontend and backend
+// behind the same reverse proxy).
+let resolvedFrontendUrl: string | undefined;
 if (oidcFullyConfigured) {
+  resolvedFrontendUrl =
+    (FRONTEND_URL && normalizeOrigin(FRONTEND_URL)) ||
+    ALLOWED_ORIGINS.find((o) => o !== DEV_ORIGIN) ||
+    new URL(OIDC_REDIRECT_URI!).origin;
+
   console.log('OIDC authentication enabled. Password login is disabled.');
   console.log(`  Issuer: ${OIDC_ISSUER_URL}`);
   console.log(`  Client ID: ${OIDC_CLIENT_ID}`);
   console.log(`  Redirect URI: ${OIDC_REDIRECT_URI}`);
-  console.log(`  Frontend URL: ${FRONTEND_URL}`);
+  console.log(`  Frontend URL: ${resolvedFrontendUrl}${FRONTEND_URL ? '' : ' (derived; set FRONTEND_URL to override)'}`);
   console.log(`  Username claim: ${OIDC_USERNAME_CLAIM}`);
 }
-
-// Compute allowed CORS origins once at startup
-function buildCorsOrigins(): string[] {
-  const origins: string[] = [];
-  if (NODE_ENV === 'production') {
-    origins.push(PRODUCTION_ORIGIN);
-  } else {
-    origins.push(...DEVELOPMENT_ORIGINS);
-  }
-  // Add FRONTEND_URL if configured (for OIDC setups where frontend URL may differ)
-  if (FRONTEND_URL && !origins.includes(FRONTEND_URL)) {
-    origins.push(FRONTEND_URL);
-  }
-  return origins;
-}
-
-const ALLOWED_ORIGINS = buildCorsOrigins();
-console.log(`CORS: Allowing origins: ${ALLOWED_ORIGINS.join(', ')}`);
 
 // Helper function to set CORS headers
 function setCorsHeaders(request: any, reply: any) {
   const origin = request.headers.origin;
-  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+  if (origin && isOriginAllowed(origin)) {
     reply.header('Access-Control-Allow-Origin', origin);
     reply.header('Access-Control-Allow-Credentials', 'true');
     reply.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
@@ -106,7 +132,7 @@ await fastify.register(cors, {
     if (!origin) {
       return callback(null, true);
     }
-    if (ALLOWED_ORIGINS.includes(origin)) {
+    if (isOriginAllowed(origin)) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'), false);
@@ -138,7 +164,7 @@ fastify.decorate('config', {
       clientId: OIDC_CLIENT_ID!,
       clientSecret: OIDC_CLIENT_SECRET!,
       redirectUri: OIDC_REDIRECT_URI!,
-      frontendUrl: FRONTEND_URL!,
+      frontendUrl: resolvedFrontendUrl!,
       usernameClaim: OIDC_USERNAME_CLAIM,
     },
   }),

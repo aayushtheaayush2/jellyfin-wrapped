@@ -23,15 +23,17 @@ services:
       # Generate one with: openssl rand -base64 32
       - JWT_SECRET=<generate_a_random_secret_here>
       # Set to 'production' for production deployments
-      # Production: CORS allows only https://wrapped.raja-house.com
-      # Development: CORS allows https://wrapped.raja-house.com and http://localhost:5173
       - NODE_ENV=production
+      # Recommended: comma-separated list of frontend origins allowed by CORS ("*" = any).
+      # If neither CORS_ORIGINS nor FRONTEND_URL is set, all origins are allowed.
+      # - CORS_ORIGINS=http://localhost,https://wrapped.example.com
       # Optional: OIDC/SSO Authentication
-      # Set ALL of these to enable OIDC login (disables password login when set)
+      # Set ALL four OIDC_* variables to enable OIDC login (disables password login when set)
       # - OIDC_ISSUER_URL=https://your-oidc-provider.com
       # - OIDC_CLIENT_ID=your-client-id
       # - OIDC_CLIENT_SECRET=your-client-secret
       # - OIDC_REDIRECT_URI=http://localhost:3001/auth/oidc/callback
+      # Optional: frontend URL for the post-login redirect (also allowed by CORS)
       # - FRONTEND_URL=http://localhost
       # Optional: Override which OIDC claim maps to the Jellyfin username (default: preferred_username)
       # - OIDC_USERNAME_CLAIM=preferred_username

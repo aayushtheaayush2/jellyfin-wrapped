@@ -9,6 +9,16 @@ export interface JellyfinConfig {
   userId: string;
 }
 
+// Build auth headers for Jellyfin requests.
+// Modern Jellyfin (10.9+) expects the standard `Authorization: MediaBrowser ...` header;
+// `X-Emby-Token` is kept as a fallback for older servers.
+function buildTokenHeaders(token: string): Record<string, string> {
+  return {
+    'Authorization': `MediaBrowser Client="Jellyfin-Wrapped-Backend", Device="Server", DeviceId="jellyfin-wrapped-backend", Version="1.0.0", Token="${token}"`,
+    'X-Emby-Token': token,
+  };
+}
+
 // Execute SQL query against Playback Reporting plugin
 export async function executeSqlQuery(
   config: JellyfinConfig,
@@ -19,7 +29,7 @@ export async function executeSqlQuery(
     {
       method: 'POST',
       headers: {
-        'X-Emby-Token': config.apiKey,
+        ...buildTokenHeaders(config.apiKey),
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -58,9 +68,7 @@ export async function getItemsByIds(
     const response = await fetch(
       `${config.serverUrl}/Users/${config.userId}/Items?ids=${idsParam}&fields=ParentId,People,Genres`,
       {
-        headers: {
-          'X-Emby-Token': config.userToken,
-        },
+        headers: buildTokenHeaders(config.userToken),
       }
     );
 
@@ -116,7 +124,7 @@ export async function getShowEpisodeStats(
   const allResponse = await fetch(
     `${config.serverUrl}/Users/${config.userId}/Items?parentId=${showId}&includeItemTypes=Episode&recursive=true`,
     {
-      headers: { 'X-Emby-Token': config.userToken },
+      headers: buildTokenHeaders(config.userToken),
     }
   );
 
@@ -130,7 +138,7 @@ export async function getShowEpisodeStats(
   const watchedResponse = await fetch(
     `${config.serverUrl}/Users/${config.userId}/Items?parentId=${showId}&includeItemTypes=Episode&recursive=true&filters=IsPlayed`,
     {
-      headers: { 'X-Emby-Token': config.userToken },
+      headers: buildTokenHeaders(config.userToken),
     }
   );
 
@@ -154,7 +162,7 @@ export async function findJellyfinUserByName(
   username: string
 ): Promise<{ Id: string; Name: string } | null> {
   const response = await fetch(`${serverUrl}/Users`, {
-    headers: { 'X-Emby-Token': apiKey },
+    headers: buildTokenHeaders(apiKey),
   });
 
   if (!response.ok) {
