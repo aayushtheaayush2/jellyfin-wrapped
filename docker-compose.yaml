@@ -8,7 +8,7 @@ services:
     #   dockerfile: Dockerfile
 
     # Use published image from GitHub Container Registry
-    image: ghcr.io/sraja7272/jellyfin-wrapped-backend:latest
+    image: ghcr.io/aayushtheaayush2/jellyfin-wrapped-backend:latest
 
     ports:
       - "3001:3001"
@@ -45,7 +45,7 @@ services:
     #   dockerfile: Dockerfile
 
     # Use published image from GitHub Container Registry
-    image: ghcr.io/sraja7272/jellyfin-wrapped:latest
+    image: ghcr.io/aayushtheaayush2/jellyfin-wrapped:latest
 
     ports:
       - "80:80"
