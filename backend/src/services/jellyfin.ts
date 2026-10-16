@@ -4,6 +4,7 @@ import { SimpleItemDto, PersonDto } from '../types.js';
 
 export interface JellyfinConfig {
   serverUrl: string;
+  publicServerUrl?: string;
   apiKey: string;
   userToken: string;
   userId: string;
@@ -92,6 +93,7 @@ export async function getItemsByIds(
       }>;
     };
 
+    const imageBaseUrl = config.publicServerUrl || config.serverUrl;
     const items = (data.Items ?? []).map((item) => ({
       id: item.Id,
       parentId: item.ParentId,
@@ -101,12 +103,12 @@ export async function getItemsByIds(
       productionYear: item.ProductionYear,
       people: item.People?.map((person) => ({
         ...person,
-        imageUrl: person.Id ? `${config.serverUrl}/Items/${person.Id}/Images/Primary?maxWidth=300&quality=90` : null,
+        imageUrl: person.Id ? `${imageBaseUrl}/Items/${person.Id}/Images/Primary?maxWidth=300&quality=90` : null,
       })),
       genres: item.Genres,
       genreItems: item.GenreItems,
       durationSeconds: item.RunTimeTicks ? Math.floor(item.RunTimeTicks / 10000000) : 0,
-      imageUrl: item.Id ? `${config.serverUrl}/Items/${item.Id}/Images/Primary?maxWidth=300&quality=90` : null,
+      imageUrl: item.Id ? `${imageBaseUrl}/Items/${item.Id}/Images/Primary?maxWidth=300&quality=90` : null,
     }));
 
     allItems.push(...items);

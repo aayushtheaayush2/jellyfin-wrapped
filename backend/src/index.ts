@@ -4,17 +4,23 @@ import jwt from '@fastify/jwt';
 import { authRoutes } from './routes/auth.js';
 import { dataRoutes } from './routes/data.js';
 
-const fastify = Fastify({
-  logger: true,
-});
-
 // Environment variables
 const PORT = parseInt(process.env.PORT || '3001', 10);
 const HOST = process.env.HOST || '0.0.0.0';
 const JWT_SECRET = process.env.JWT_SECRET;
 const JELLYFIN_SERVER_URL = process.env.JELLYFIN_SERVER_URL;
+const JELLYFIN_PUBLIC_URL = process.env.JELLYFIN_PUBLIC_URL;
 const JELLYFIN_API_KEY = process.env.JELLYFIN_API_KEY;
 const NODE_ENV = process.env.NODE_ENV || 'development';
+const TRUST_PROXY = process.env.TRUST_PROXY !== 'false';
+
+const fastify = Fastify({
+  logger: {
+    redact: ['req.headers.authorization'],
+  },
+  trustProxy: TRUST_PROXY,
+  bodyLimit: 64 * 1024, // 64 KiB max request body
+});
 
 // OIDC environment variables (all optional — set all to enable OIDC)
 const OIDC_ISSUER_URL = process.env.OIDC_ISSUER_URL;
@@ -148,15 +154,23 @@ await fastify.register(jwt, {
   secret: JWT_SECRET,
 });
 
-// Ensure CORS headers are set on all responses (including errors)
-// This runs after the CORS plugin, so it ensures headers are always present
+// Ensure CORS and security headers are set on all responses (including errors)
 fastify.addHook('onSend', async (request, reply) => {
   setCorsHeaders(request, reply);
+  reply.header('X-Content-Type-Options', 'nosniff');
+  reply.header('X-Frame-Options', 'DENY');
+  reply.header('Referrer-Policy', 'no-referrer');
 });
+
+const normalizedJellyfinServerUrl = normalizeOrigin(JELLYFIN_SERVER_URL);
+const normalizedJellyfinPublicUrl = JELLYFIN_PUBLIC_URL
+  ? normalizeOrigin(JELLYFIN_PUBLIC_URL)
+  : normalizedJellyfinServerUrl;
 
 // Decorate fastify with config
 fastify.decorate('config', {
-  jellyfinServerUrl: JELLYFIN_SERVER_URL,
+  jellyfinServerUrl: normalizedJellyfinServerUrl,
+  jellyfinPublicUrl: normalizedJellyfinPublicUrl,
   jellyfinApiKey: JELLYFIN_API_KEY,
   ...(oidcFullyConfigured && {
     oidc: {

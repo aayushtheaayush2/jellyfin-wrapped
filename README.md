@@ -165,11 +165,13 @@ npm run dev
 **Backend:**
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `JELLYFIN_SERVER_URL` | Yes | Your Jellyfin server URL |
+| `JELLYFIN_SERVER_URL` | Yes | Your Jellyfin server URL (can be a LAN address such as `http://10.10.0.2:30013`) |
+| `JELLYFIN_PUBLIC_URL` | No | Publicly reachable Jellyfin URL used by browsers for poster/actor images (defaults to `JELLYFIN_SERVER_URL`) |
 | `JELLYFIN_API_KEY` | Yes | Admin API key |
 | `JWT_SECRET` | Yes | Secret for signing JWT tokens (min 32 characters) |
 | `NODE_ENV` | Recommended | Set to `production` for production deployments. Outside production, `http://localhost:5173` (Vite dev server) is added to the CORS allowlist when an allowlist is configured |
 | `CORS_ORIGINS` | Recommended | Comma-separated list of allowed frontend origins (e.g. `https://wrapped.example.com,http://192.168.1.10`). Use `*` to allow any origin. If neither `CORS_ORIGINS` nor `FRONTEND_URL` is set, all origins are allowed |
+| `TRUST_PROXY` | No | Trust `X-Forwarded-For` headers from reverse proxies for rate limiting (default: `true`; set to `false` only if exposed directly without a proxy) |
 | `PORT` | No | Server port (default: 3001) |
 | `HOST` | No | Server host (default: 0.0.0.0) |
 | `OIDC_ISSUER_URL` | For OIDC | OIDC provider issuer URL (e.g., `https://id.example.com`) |
@@ -182,7 +184,7 @@ npm run dev
 **Frontend (Docker/Production):**
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `BACKEND_URL` | Yes | URL where backend is accessible from browser |
+| `BACKEND_URL` | No | URL where backend is accessible from browser. Defaults to `window.location.origin` (the frontend container automatically proxies `/api`, `/auth`, and `/health` to `http://backend:3001`) |
 
 **Frontend (Vite Development):**
 | Variable | Required | Description |
